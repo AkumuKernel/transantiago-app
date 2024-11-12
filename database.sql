@@ -1,14 +1,14 @@
-#Extensión para GeoJson
+-- Extensión para GeoJson
 CREATE EXTENSION IF NOT EXISTS postgis;
 
-#Extensión para dijkstra
+-- Extensión para dijkstra
 CREATE EXTENSION IF NOT EXISTS pgrouting;
 
 
-#Extensión para UUID
+--Extensión para UUID
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -------------------------------------------------------------------------------------------------------------------------------------------
-#Aglomeracion
+--Aglomeracion
 CREATE TABLE aglomeracion (
     paradero VARCHAR(255) PRIMARY KEY,                          --Código paradero
     comuna VARCHAR(255),                                        --Comuna del paradero
@@ -51,7 +51,7 @@ CREATE TABLE aglomeracion (
     "23:30:00" FLOAT
 );
 -------------------------------------------------------------------------------------------------------------------------------------
-#Subidas
+--Subidas
 CREATE TABLE subidas (
     paradero VARCHAR(255) PRIMARY KEY,                          --Código del paradero
     comuna VARCHAR(255),                                        --Comuna del paradero
@@ -93,20 +93,10 @@ CREATE TABLE subidas (
     "23:00:00" FLOAT,
     "23:30:00" FLOAT
 );
+
 ------------------------------------------------------------------------------------------------------------------------------------------
-#Espera
-CREATE TABLE espera (
-    id SERIAL PRIMARY KEY,                                      --Identificador único
-    paradero VARCHAR(20) NOT NULL,                              --Código del paradero consultado
-    servicio VARCHAR(10) NOT NULL,                              --Recorrido de bus en camino
-    bus VARCHAR(20) NOT NULL,                                   --Identificador del bus
-    distancia INT NOT NULL,                                     --Distancia (en metros) del bus al paradero consultado
-    llegada_min INT NOT NULL,                                   --Tiempo mínimo estimado de llegada del bus
-    llegada_max INT NOT NULL,                                   --Tiempo máximo estimado de llegada del bus
-    consulta TIMESTAMP DEFAULT CURRENT_TIMESTAMP                --Tiempo en el que se realizó la consulta
-);
-------------------------------------------------------------------------------------------------------------------------------------------
-                #Infraestructura
+--Infraestructura
+
 #Recorridos
 CREATE TABLE recorridos (
     codigo VARCHAR(50) PRIMARY KEY,
@@ -118,8 +108,8 @@ CREATE TABLE paraderos (
     geom GEOMETRY(Point, 4326),                          --Coordenadas del paradero         
     servicios JSONB            
 );
-#Calles
-CREATE TABLE calles (
+--Tramos ruta
+CREATE TABLE tramos_ruta (
     id SERIAL PRIMARY KEY,                                      --Identificador único
     origen VARCHAR(10) REFERENCES paraderos(codigo),            --Paradero de origen
     destino VARCHAR(10) REFERENCES paraderos(codigo),           --Paradero de destino
@@ -127,7 +117,25 @@ CREATE TABLE calles (
     geom GEOMETRY(LineString, 4326)                             --Coordenadas que unen los paraderos
 );
 ----------------------------------------------------------------------------------------------------------------------------------------
-#Alertas
+-- servicios
+CREATE TABLE servicios (
+    id VARCHAR(10) PRIMARY KEY
+);
+
+-- Espera
+CREATE TABLE espera (
+    id SERIAL PRIMARY KEY,                                      -- Identificador único
+    paradero VARCHAR(20) NOT NULL REFERENCES paraderos(codigo), -- Código del paradero consultado
+    servicio VARCHAR(10) NOT NULL REFERENCES servicios(id),     -- Recorrido de bus en camino
+    bus VARCHAR(20) NOT NULL,                                   -- Identificador del bus
+    distancia INT NOT NULL,                                     -- Distancia (en metros) del bus al paradero consultado
+    llegada_min INT NOT NULL,                                   -- Tiempo mínimo estimado de llegada del bus
+    llegada_max INT NOT NULL,                                   -- Tiempo máximo estimado de llegada del bus
+    consulta TIMESTAMP DEFAULT CURRENT_TIMESTAMP                -- Tiempo en el que se realizó la consulta
+);
+
+----------------------------------------------------------------------------------------------------------------------------------------
+--Alertas
 CREATE TABLE alertas (
     uuid UUID PRIMARY KEY,                                      --ID único del reporte
     calle VARCHAR(100),                                         --Calle donde se origina el incidente
@@ -137,7 +145,7 @@ CREATE TABLE alertas (
     geom GEOGRAPHY(POINT, 4326)                                 --Coordenadas del reporte
 );
 ------------------------------------------------------------------------------------------------------------------------------------------
-#Metro
+--Metro
 CREATE TABLE metro (
     id SERIAL PRIMARY KEY,                                      --Identificador único
     nombre VARCHAR(255) NOT NULL,                               --Nombre de la estación
@@ -147,10 +155,12 @@ CREATE TABLE metro (
     linea VARCHAR(10) NOT NULL                                  --Línea a la que pertenece la estación
 );
 ------------------------------------------------------------------------------------------------------------------------------------------
-#Tráfico_Waze
+--Tráfico_Waze
 CREATE TABLE trafico (
     id SERIAL PRIMARY KEY,                                      --Identificador único
     geom GEOMETRY(LineString, 4326),                            --Coordenadas del incidente
     descripcion VARCHAR(255),                                   --Tipo de incidente (trabajos, policia, congestion)
     creacion TIMESTAMP DEFAULT CURRENT_TIMESTAMP                --Hora de creación del incidente
 );
+
+-------------------------------------------------------------------

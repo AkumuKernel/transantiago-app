@@ -1,0 +1,159 @@
+<!-- views/ruta.hbs -->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ruta de Micro {{busCode}}</title>
+    <style>
+        #map {
+            width: 75%;
+            height: 75%;
+            margin: auto;
+        }
+        .legend {
+            background: white;
+            padding: 10px;
+            line-height: 18px;
+            color: #555;
+        }
+        .legend i {
+            width: 18px;
+            height: 18px;
+            float: left;
+            margin-right: 8px;
+            opacity: 0.7;
+        }
+    </style>
+</head>
+<body>
+    <div class="content-page">
+        <div class="container-fluid">
+            <div class="row">
+                <!-- start page title -->
+                <div class="row">
+                    <div class="col-12">
+                        <div class="page-title-box">
+                            <div class="page-title-right">
+                                <ol class="breadcrumb m-0">
+                                    <li class="breadcrumb-item"><a href="javascript: void(0);">Transantiago App</a></li>
+                                    <li class="breadcrumb-item"><a href="javascript: void(0);">Páginas</a></li>
+                                    <li class="breadcrumb-item active">Mapa</li>
+                                </ol>
+                            </div>
+                            <h4 class="page-title">Ruta de la Micro {{busCode}}</h4>
+                        </div>
+                    </div>
+                </div>
+                <!-- end page title -->
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-center align-items-center">
+                            <div class="d-flex flex-column text-center"> 
+                                <div id="map" class="w-75 h-75"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <!-- Include Bootstrap JS if needed -->
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <!-- Custom Script -->
+    <script>
+        const routeData = {{{routeData}}}; // Datos de la ruta en formato GeoJSON
+
+        // Inicializar el mapa sin especificar centro y zoom
+        var map = L.map('map', {
+            minZoom: 13, // Nivel de zoom mínimo permitido
+            maxZoom: 19, // Nivel de zoom máximo permitido
+            maxBounds: L.latLngBounds(
+                L.latLng(-33.7, -71.0), // Esquina suroeste (lat, lng)
+                L.latLng(-33.0, -70.3)  // Esquina noreste (lat, lng)
+            )
+        });
+
+        // Añadir capa base de OpenStreetMap
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        // Colores para cada dirección
+        const colores = {
+            ida: '#00A77E',    // Verde para ida
+            vuelta: '#CF152D'  // Rojo para vuelta
+        };
+
+        // Crear capa para recorrido de ida
+        var capaIda = L.geoJSON(routeData.ida, {
+            onEachFeature: function (feature, layer) {
+                if (feature.geometry.type === "Point") {
+                    layer.bindPopup(`<b>Paradero:</b> ${feature.properties.description}`);
+                } else if (feature.geometry.type === "LineString") {
+                    layer.setStyle({ color: colores.ida, weight: 4 });
+                }
+            },
+            pointToLayer: function (feature, latlng) {
+                return L.circleMarker(latlng, {
+                    radius: 6,
+                    fillColor: colores.ida,
+                    color: "#fff",
+                    weight: 1,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                });
+            }
+        }).addTo(map);
+
+        // Crear capa para recorrido de vuelta
+        var capaVuelta = L.geoJSON(routeData.vuelta, {
+            onEachFeature: function (feature, layer) {
+                if (feature.geometry.type === "Point") {
+                    layer.bindPopup(`<b>Paradero:</b> ${feature.properties.description}`);
+                } else if (feature.geometry.type === "LineString") {
+                    layer.setStyle({ color: colores.vuelta, weight: 4 });
+                }
+            },
+            pointToLayer: function (feature, latlng) {
+                return L.circleMarker(latlng, {
+                    radius: 6,
+                    fillColor: colores.vuelta,
+                    color: "#fff",
+                    weight: 1,
+                    opacity: 1,
+                    fillOpacity: 0.8
+                });
+            }
+        }).addTo(map);
+
+        // Crear controles de capas
+        var overlays = {
+            "Ida": capaIda,
+            "Vuelta": capaVuelta
+        };
+
+        L.control.layers({}, overlays, { collapsed: false }).addTo(map);
+
+        // Crear la leyenda
+        var legend = L.control({ position: 'bottomright' });
+
+        legend.onAdd = function (map) {
+            var div = L.DomUtil.create('div', 'legend');
+            div.innerHTML += '<i style="background: ' + colores.ida + '"></i> Ida<br>';
+            div.innerHTML += '<i style="background: ' + colores.vuelta + '"></i> Vuelta<br>';
+            return div;
+        };
+
+        legend.addTo(map);
+
+        // Ajustar la vista del mapa para mostrar ambos recorridos
+        var grupo = L.featureGroup([capaIda, capaVuelta]);
+        map.fitBounds(grupo.getBounds());
+    </script>
+</body>
+</html>

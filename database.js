@@ -1,13 +1,15 @@
 const { Client } = require('pg');
 require('dotenv').config();
+require('dotenv').config();
+const { Buffer } = require('buffer');
 
-// Configuración de conexión a PostgreSQL usando variables de entorno
-const client = new Client({
-    user: process.env.DB_USER,
-    host: process.env.DB_HOST,
-    database: process.env.DB_DATABASE,
-    password: process.env.DB_PASSWORD,
-    port: process.env.DB_PORT,
+// Configurar el pool de conexiones a PostgreSQL usando variables de entorno
+const pool = new Pool({
+  user: process.env.DB_USER,         // Usuario de la base de datos
+  host: process.env.DB_HOST,         // Host de la base de datos
+  database: process.env.DB_DATABASE, // Nombre de la base de datos
+  password: process.env.DB_PASSWORD, // Contraseña de la base de datos
+  port: process.env.DB_PORT,         // Puerto de la base de datos
 });
 
 // Función para iniciar la conexión
