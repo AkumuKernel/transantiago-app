@@ -108,21 +108,20 @@ CREATE TABLE espera (
                 #Infraestructura
 #Recorridos
 CREATE TABLE recorridos (
-    codigo VARCHAR(50) PRIMARY KEY,
-    geom geometry(LINESTRING, 4326) -- Usamos el tipo LINESTRING con SRID 4326 (WGS 84)
+    codigo VARCHAR(50) PRIMARY KEY,                             --
+    geom geometry(LINESTRING, 4326)                             -- Usamos el tipo LINESTRING con SRID 4326 (WGS 84)
 );
 #Paraderos
 CREATE TABLE paraderos (
     codigo VARCHAR(50) PRIMARY KEY,                             --Código del paradero
-    geom GEOMETRY(Point, 4326),                          --Coordenadas del paradero         
-    servicios JSONB            
+    geom GEOMETRY(Point, 4326),                                 --Coordenadas del paradero         
+    servicios JSONB                                             --
 );
 #Calles
 CREATE TABLE calles (
     id SERIAL PRIMARY KEY,                                      --Identificador único
     origen VARCHAR(10) REFERENCES paraderos(codigo),            --Paradero de origen
     destino VARCHAR(10) REFERENCES paraderos(codigo),           --Paradero de destino
-    distancia DOUBLE PRECISION,                                 --Peso de la arista, puede ser la distancia entre los paraderos
     geom GEOMETRY(LineString, 4326)                             --Coordenadas que unen los paraderos
 );
 ----------------------------------------------------------------------------------------------------------------------------------------
@@ -172,7 +171,7 @@ CREATE TABLE disponibilidad (
     nivel_congestion INTEGER,                                   -- Nivel de congestión del segmento
     habilitado BOOLEAN,                                         -- Si el segmento se encuentra habilitado para la circulación
     largo_segmento INTEGER                                      -- Largo del segmento del incidente
-    UNIQUE (origen, destino)                                    -- Restricción única para la combinación de origen y destino
+    geom GEOMETRY(Geometry, 4326)                               -- Columna para almacenar la geometría en el sistema de referencia EPSG:4326
 );
 -----------------------------------------------------------------------------------------------------------------------------------------------
         #Trafico Google
@@ -186,3 +185,29 @@ CREATE TABLE rutas (
   polyline TEXT,
   steps JSONB
 );
+--------------------------------------------------------------------------------------------------------------------------------------------
+
+DROP TABLE IF EXISTS nodes;
+
+CREATE TABLE nodes AS
+SELECT DISTINCT ON (geom)
+    codigo AS id,                             -- Generar un ID único
+    geom                                      -- Geometría del paradero
+FROM paraderos;
+
+CREATE INDEX idx_nodes_geom ON nodes USING GIST (geom);
+
+DROP TABLE IF EXISTS edges;
+
+CREATE TABLE edges AS
+SELECT
+    calles.id AS street_id,                  -- ID de la calle
+    n1.id AS source,                          -- ID del nodo de origen
+    n2.id AS target,                          -- ID del nodo de destino
+    ST_Length(calles.geom::geography) AS cost, -- Costo de la arista (distancia)
+    calles.geom                               -- Geometría de la arista
+FROM calles
+JOIN nodes AS n1 ON ST_DWithin(ST_StartPoint(calles.geom), n1.geom, 0.0001)
+JOIN nodes AS n2 ON ST_DWithin(ST_EndPoint(calles.geom), n2.geom, 0.0001);
+
+CREATE INDEX idx_edges_geom ON edges USING GIST (geom);

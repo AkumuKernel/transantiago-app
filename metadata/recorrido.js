@@ -2,8 +2,12 @@ const express = require('express');
 const router = express.Router();
 const axios = require('axios');
 require('dotenv').config();
+const { insertData, connect, disconnect } = require('../database');
 
 const recorrido = "https://www.red.cl/restservice_v2/rest/conocerecorrido?codsint=";
+const url1="https://www.red.cl/restservice_v2/rest/getservicios/all";
+
+//obtenerRutasAuto(url1, recorrido);
 
 router.get('/recorrido/:id', async (req, res) => {
     const {id} = req.params;
@@ -29,13 +33,93 @@ router.get('/recorrido/:id', async (req, res) => {
     }
 });
 
+async function obtenerRutasAuto(url1, recorrido) {
+  try {
+    await connect();
+      const response1 = await axios.get(url1);
+      const ids = response1.data; // Suponiendo que la respuesta es un array de IDs
+
+      // Asegúrate de que ids es un array
+      if (!Array.isArray(ids)) {
+          throw new Error('La respuesta no contiene un array de IDs.');
+      }
+
+      // Iterar sobre cada ID
+      for (const id of ids) {
+          const url2 = recorrido + id; // Construir la URL para cada ID
+          const data = await obtenerDatosYProcesar(url2);
+
+          // Solo intenta insertar si data es válido
+          if (data) {
+              await insertCalles(data);
+          } else {
+            await disconnect();
+              console.warn(`No se encontraron datos para el ID: ${id}`);
+          }
+      }
+      await disconnect();
+  } catch (error) {
+      console.error('Error al obtener los datos:', error.response ? error.response.data : error.message);
+  }
+}
+
+// Función para insertar datos en PostgreSQL
+async function insertCalles(data) {
+  for (const feature of data.features) {
+      // Verificar que sea un LineString
+      if (feature.geometry.type !== 'LineString') {
+          console.warn(`El tipo de geometría no es LineString: ${feature.geometry.type}`);
+          continue; // Pasar al siguiente feature
+      }
+
+      const coordinates = feature.geometry.coordinates;
+      const descriptionParts = feature.properties.description.split(' ');
+
+      // Verificar que haya exactamente 2 partes en la descripción
+      if (descriptionParts.length !== 2) {
+          console.warn(`La descripción no contiene exactamente 2 partes: ${feature.properties.description}`);
+          continue; // Pasar al siguiente feature
+      }
+
+      const origen = descriptionParts[0]; // Primer elemento
+      const destino = descriptionParts[1]; // Segundo elemento
+
+      // Construir el WKT para el LineString
+      const geom = `LINESTRING(${coordinates.map(coord => `${coord[0]} ${coord[1]}`).join(', ')})`;
+
+      const instruccion = {
+          'tabla': 'calles',
+          'datos': {
+              'origen': origen,
+              'destino': destino,
+              'geom': geom // Se pasa el WKT directamente
+          },
+      };
+
+      // Invocar la función externa insertData
+      try {
+          await insertData(instruccion);
+      } catch (error) {
+          console.error(`Error al insertar en calles:`, error);
+      }
+  }
+}
+
 // Procesar Recorridos
 async function obtenerDatosYProcesar(url) {
     try {
       // Hacer la solicitud para obtener el JSON
       const response = await axios.get(url);
       const data = response.data;
-  
+      
+      // Imprimir la respuesta para verificar su estructura
+      //console.log('Respuesta de la API:', data);
+
+      // Verificar que la respuesta tiene la estructura esperada
+      if (!data.ida || !data.ida.path || !data.ida.paraderos) {
+        throw new Error('La respuesta no contiene la estructura esperada.');
+    }
+
       // Extraemos el path y los paraderos
       const path = data.ida.path;
       const paraderos = data.ida.paraderos.map(p => p.pos);
