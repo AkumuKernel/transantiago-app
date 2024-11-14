@@ -13,7 +13,7 @@ const paraderos = "https://www.dtpm.cl/descargas/poss24/2024-11-09_consolidado_R
 const utmToWgs84 = proj4('EPSG:32719', 'EPSG:4326'); // 32719 está basado en coordenadas UTM y 4326 está basado en las coordenadas WGS84
 
 // Función para insertar datos en PostgreSQL
-async function insertParadero(codigoParadero, lon, lat, servicios) {
+async function insertParadero(codigoParadero, lon, lat, servicios, comuna) {
     try {
         // Verificar si las coordenadas son válidas
         if (isNaN(lon) || isNaN(lat)) {
@@ -26,7 +26,8 @@ async function insertParadero(codigoParadero, lon, lat, servicios) {
             'datos': {
                 'codigo': codigoParadero,
                 'geom':  `POINT(${lon} ${lat})`,
-                'servicios': JSON.stringify(servicios)
+                'servicios': JSON.stringify(servicios),
+                'comuna': comuna
             },
             'conflict': 'ON CONFLICT (codigo) DO UPDATE SET servicios = paraderos.servicios || EXCLUDED.servicios' // Combina servicios si ya existe
         };
@@ -93,6 +94,7 @@ async function downloadAndProcess(url) {
     // Procesar filas del archivo, comenzando desde la fila 2 (ignorando encabezado)
     data.forEach(row => {
         const codigoParadero = row[7];
+        const comuna = row[8];
         const codigoUsuario = row[2];
         const sentidoServicio = row[3];
         const variante = row[4] ? row[4] : '';
@@ -129,13 +131,14 @@ async function downloadAndProcess(url) {
                     },
                     properties: {
                         codigoParadero,
-                        servicios: [usuarioObj]
+                        servicios: [usuarioObj],
+                        comuna
                     }
                 };
                 geoJsonData.features.push(paraderoFeature);
             }
             // Paso 3: Insertar datos en la base de datos.
-            insertParadero(codigoParadero, lon, lat, [usuarioObj]);
+            insertParadero(codigoParadero, lon, lat, [usuarioObj], comuna);
         }
     });
 

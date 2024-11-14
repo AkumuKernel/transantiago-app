@@ -6,39 +6,60 @@ const unzipper = require('unzipper');
 const xlsb = require('xlsx');
 const path = require('path');
 const fs = require('fs');
+const { insertData, connect, disconnect } = require('../database');
 
 const subidas = "https://www.dtpm.cl/descargas/modelos_y_matrices/tablas_subidas_bajadas_abr24.zip";
 
+// Función para insertar datos en PostgreSQL
+async function insertSubidas(paraderos, data) {
+  try {
+    for (const [codigoParadero, datos] of Object.entries(paraderos)) {
+      const instruccion = {
+        'tabla': 'subidas',
+        'datos': {
+          'paradero': codigoParadero,
+          'comuna': data.comuna,
+          'horas': JSON.stringify(data.valores)
+        },
+        'conflict': 'ON CONFLICT (paradero) DO UPDATE SET horas = subidas.horas || EXCLUDED.paradero'
+      };
+      await insertData(instruccion);
+    }
+  } catch (error) {
+    console.error('Error al insertar los paraderos:', error);
+  }
+}
+
 // Ruta para manejar la subida de datos
 router.get('/subidas', async (req, res) => {
-    try {
-        const data = await downloadAndProcessZip(subidas); // Cambia el nombre de la variable a "subidas"
-    
-        if (data) {
-            res.status(200).json(data);
-        } else {
-            res.status(404).json({ message: 'No se encontraron datos.' });
-        }
-    } catch (error) {
-        console.error('Error en la importación:', error);
-        res.status(500).json({ message: 'Error en la importación de datos.' });
+  try {
+    await connect();
+
+    const data = await downloadAndProcessZip(subidas);
+
+    if (data) {
+      // Llama a la función de inserción aquí, después de generar los datos
+      await insertSubidas(data);
+      res.status(200).json(data);
+    } else {
+      res.status(404).json({ message: 'No se encontraron datos.' });
     }
+  } catch (error) {
+    console.error('Error en la importación:', error);
+    res.status(500).json({ message: 'Error en la importación de datos.' });
+  } finally {
+    // await disconnect();
+  }
 });
 
 // Procesar archivos Zip
 async function downloadAndProcessZip(url) {
-  // Definir rutas de archivo
   const zipPath = path.join(__dirname, 'tablas_subidas_bajadas_abr24.zip');
   const xlsbPath = path.join(__dirname, 'tablas_subidas_bajadas_abr24/2024.04-Matriz_sub_SS_MH.xlsb');
 
   try {
-    // Paso 1: Descargar el archivo ZIP
-    const response = await axios({
-      url,
-      responseType: 'stream'
-    });
-
-    // Paso 2: Extraer el archivo XLSB
+    const response = await axios({ url, responseType: 'stream' });
+    
     await new Promise((resolve, reject) => {
       const writer = fs.createWriteStream(zipPath);
       response.data.pipe(writer);
@@ -50,15 +71,12 @@ async function downloadAndProcessZip(url) {
       .pipe(unzipper.Extract({ path: __dirname }))
       .promise();
 
-    // Paso 3: Leer y procesar el archivo XLSB
     const workbook = xlsb.readFile(xlsbPath);
-    const sheetName = workbook.SheetNames[1]; // Segunda hoja
+    const sheetName = workbook.SheetNames[1];
     const sheet = workbook.Sheets[sheetName];
 
-    // Convertir a JSON y saltar las primeras dos filas
     let data = xlsb.utils.sheet_to_json(sheet, { header: 1 }).slice(2);
 
-    // Definir las columnas que queremos conservar
     const indicesRelevantes = {
       'Comuna': 1,
       'paradero': 2,
@@ -99,34 +117,29 @@ async function downloadAndProcessZip(url) {
       '22:30:00': 52,
       '23:00:00': 53,
       '23:30:00': 54
-  };
+    };
 
-    // Paso 4: Sumar valores y filtrar por paradero
     const resultado = data.reduce((acumulador, fila) => {
-      const paradero = fila[indicesRelevantes['paradero']]; // Índice de 'paradero'
-      if (paradero == "" || paradero == null) return acumulador; // Descartar filas sin paradero
+      const paradero = fila[indicesRelevantes['paradero']];
+      if (paradero == "" || paradero == null) return acumulador;
 
-      // Crear un objeto para el paradero si no existe
       if (!acumulador[paradero]) {
-        acumulador[paradero] = { comuna: fila[indicesRelevantes['Comuna']], valores: {} }; // fila[0] es 'Comuna'
+        acumulador[paradero] = { comuna: fila[indicesRelevantes['Comuna']], valores: {} };
       }
 
-      // Sumar valores por intervalo de tiempo
-      Object.keys(indicesRelevantes).slice(2).forEach((columna) => { // Desde el tercer índice
-        const valor = fila[indicesRelevantes[columna]]; // Obtener el valor
+      Object.keys(indicesRelevantes).slice(2).forEach((columna) => {
+        const valor = fila[indicesRelevantes[columna]];
         acumulador[paradero].valores[columna] = (acumulador[paradero].valores[columna] || 0) + (valor !== undefined ? valor : 0);
       });
 
       return acumulador;
     }, {});
 
-    // Paso 5: Devolver el resultado en formato JSON
     return resultado;
 
   } catch (error) {
     console.error('Error al procesar el archivo:', error);
   } finally {
-    // Limpieza: Eliminar archivos temporales si fueron definidos
     if (zipPath && fs.existsSync(zipPath)) {
       fs.unlinkSync(zipPath);
     }
