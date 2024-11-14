@@ -115,7 +115,8 @@ CREATE TABLE recorridos (
 CREATE TABLE paraderos (
     codigo VARCHAR(50) PRIMARY KEY,                             --Código del paradero
     geom GEOMETRY(Point, 4326),                          --Coordenadas del paradero         
-    servicios JSONB            
+    servicios JSONB,
+    comunas VARCHAR(255)            
 );
 #Calles
 CREATE TABLE calles (
@@ -142,7 +143,8 @@ CREATE TABLE metro (
     codigo VARCHAR(10) NOT NULL UNIQUE,                         --Código único para la estación (siglas)
     estado VARCHAR(1) NOT NULL,                                 --Estado de la estación
     combinacion VARCHAR(10),                                    --Línea con la que se combina (puede ser NULL)
-    linea VARCHAR(10) NOT NULL                                  --Línea a la que pertenece la estación
+    linea VARCHAR(10) NOT NULL,                                 --Línea a la que pertenece la estación
+    geom GEOMETRY(Point, 4326)                           --Ubicación geográfica WGS84 de la estación                           
 );
 ------------------------------------------------------------------------------------------------------------------------------------------
 #Tráfico_Waze
