@@ -4,11 +4,16 @@ const axios = require('axios');
 const { insertData, connect, disconnect } = require('../database');
 
 const metro = "https://www.metro.cl/api/estadoRedDetalle.php";
+const ubicaciones = "https://www.metro.cl/api/estaciones.php";
+
+function buscarPorCodigo(data, codigo) {
+  return data.estaciones.find(estacion => estacion.codigo === codigo);
+}
 
 router.get('/metro', async (req, res) => {
     try {
         await connect();
-        const data = await obtenerEstadosMetro(metro);
+        const data = await obtenerEstadosMetro(metro, ubicaciones);
 
         if(data){
             console.log('OK');
@@ -25,9 +30,9 @@ router.get('/metro', async (req, res) => {
     }
 });
 
-async function insertMetro(nombre, codigo, estado, combinacion, linea) {
+async function insertMetro(nombre, codigo, estado, combinacion, linea, coordenadas) {
   try {
-      
+      const coords = coordenadas.split(",");
       // Inserta o actualiza los datos en la tabla metro
       const instruccion = {
           'tabla': 'metro',
@@ -36,7 +41,8 @@ async function insertMetro(nombre, codigo, estado, combinacion, linea) {
               'codigo': codigo,
               'estado': estado,
               'combinacion': combinacion,
-              'linea':  linea
+              'linea':  linea,
+              'geom': `POINT(${coords[1]} ${coords[0]})`
           },
           'conflict': `ON CONFLICT (codigo) DO UPDATE 
                        SET nombre = EXCLUDED.nombre,
@@ -51,13 +57,16 @@ async function insertMetro(nombre, codigo, estado, combinacion, linea) {
 }
 
 // Metro
-async function obtenerEstadosMetro(url) {
+async function obtenerEstadosMetro(url, url2) {
     try {
       const response = await axios.get(url);
       const data = response.data;
+
+      const response2 = await axios.get(url2);
+      const estaciones = response2.data;
   
       // Llama a la función que procesa los datos del JSON
-      const datosProcesados = obtenerDatosServicios(data);
+      const datosProcesados = obtenerDatosServicios(data, estaciones);
       // console.log(datosProcesados);
       return datosProcesados;
   
@@ -66,7 +75,7 @@ async function obtenerEstadosMetro(url) {
     }
   }
   
-  function obtenerDatosServicios(data) {
+  function obtenerDatosServicios(data, point) {
     const resultado = [];
 
     const lineas = Object.keys(data);
@@ -75,16 +84,18 @@ async function obtenerEstadosMetro(url) {
       const estaciones = data[linea].estaciones;
   
       estaciones.forEach((estacion) => {
+        const coordenadas = buscarPorCodigo(point, estacion.codigo).coordenadas;
         const estacionData = {
           nombre: estacion.nombre,
           codigo: estacion.codigo,
           estado: estacion.estado,
           combinacion: estacion.combinacion,
-          linea: linea
+          linea: linea,
+          coordenadas: coordenadas
         };
         resultado.push(estacionData);
 
-        insertMetro(estacion.nombre, estacion.codigo, estacion.estado, estacion.combinacion, linea);
+        insertMetro(estacion.nombre, estacion.codigo, estacion.estado, estacion.combinacion, linea, coordenadas);
 
       });
 
